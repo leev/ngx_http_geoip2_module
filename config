@@ -1,0 +1,18 @@
+ngx_feature="MaxmindDB library"
+ngx_feature_name=
+ngx_feature_run=no
+ngx_feature_incs="#include <maxminddb.h>"
+ngx_feature_libs=-lmaxminddb
+. auto/feature
+
+if [ $ngx_found = yes ]; then
+	ngx_addon_name=ngx_http_geoip2_module
+	HTTP_MODULES="$HTTP_MODULES ngx_http_geoip2_module"
+	NGX_ADDON_SRCS="$NGX_ADDON_SRCS $ngx_addon_dir/ngx_http_geoip2_module.c"
+	CORE_LIBS="$CORE_LIBS -lmaxminddb"
+else   
+	cat << END
+$0: error: the geoip2 module requires the maxminddb library.
+END
+	exit 1
+fi
