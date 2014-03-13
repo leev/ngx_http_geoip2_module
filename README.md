@@ -14,6 +14,12 @@ make
 make install
 ```
 
+## Download Maxmind GeoLite2 Database (optional)
+The free GeoLite2 databases are available from [Maxminds website](http://dev.maxmind.com/geoip/geoip2/geolite2/)
+
+[GeoLite2 City](http://geolite.maxmind.com/download/geoip/database/GeoLite2-City.mmdb.gz)
+[GeoLite2 Country](http://geolite.maxmind.com/download/geoip/database/GeoLite2-Country.mmdb.gz)
+
 ## Example Usage:
 ```
 http {
