@@ -3,6 +3,17 @@ Description
 
 **ngx_http_geoip2_module** - creates variables with values from the maxmind geoip2 databases based on the client IP (supports both IPv4 and IPv6)
 
+## Installing
+First install [libmaxminddb](https://github.com/maxmind/libmaxminddb) as described in its [README.md
+file](https://github.com/maxmind/libmaxminddb/blob/master/README.md#installing-from-a-tarball).
+
+Compile nginx:
+```
+./configure --add-module=/path/to/ngx_http_geoip2_module
+make 
+make install
+```
+
 ## Example Usage:
 ```
 http {
