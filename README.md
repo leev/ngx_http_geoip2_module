@@ -30,6 +30,7 @@ http {
     geoip2_data        $geoip2_data_city_name city names en;
     geoip2_data        $geoip2_data_geoname_id country geoname_id;
     geoip2_data        $geoip2_data_latitude location latitude;
+    geoip2_data        $geoip2_data_country_code default=US country iso_code;
     ....
 }
 ```
