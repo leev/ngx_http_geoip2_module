@@ -258,8 +258,6 @@ ngx_http_geoip2_data(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     char                    *prefix = "default=";
     size_t                  prefix_len = sizeof("default=") - 1;
 
-    printf("prefix len %d", (int)prefix_len);
-
     geoip2 = ngx_pcalloc(cf->pool, sizeof(ngx_http_geoip2_ctx_t));
     if (geoip2 == NULL) {
         return NGX_CONF_ERROR;
