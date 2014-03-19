@@ -28,6 +28,7 @@ typedef struct {
 
 typedef struct {
     const char              **lookup;
+    ngx_str_t               default_value;
 } ngx_http_geoip2_ctx_t;
 
 
@@ -205,6 +206,16 @@ ngx_http_geoip2_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v,
     return NGX_OK;
 
 not_found:
+    if (geoip2->default_value.len > 0) {
+        v->data = geoip2->default_value.data;
+        v->len = geoip2->default_value.len;
+
+        v->valid = 1;
+        v->no_cacheable = 0;
+        v->not_found = 0;
+
+        return NGX_OK;
+    }
     v->not_found = 1;
 
     return NGX_OK;
@@ -243,7 +254,11 @@ ngx_http_geoip2_data(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_str_t               *value, name;
     ngx_http_geoip2_ctx_t   *geoip2;
     ngx_http_variable_t     *var;
-    int                     i, nelts;
+    int                     i, nelts, lookup_idx;
+    char                    *prefix = "default=";
+    size_t                  prefix_len = sizeof("default=") - 1;
+
+    printf("prefix len %d", (int)prefix_len);
 
     geoip2 = ngx_pcalloc(cf->pool, sizeof(ngx_http_geoip2_ctx_t));
     if (geoip2 == NULL) {
@@ -269,13 +284,21 @@ ngx_http_geoip2_data(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     name.len--;
     name.data++;
 
+    lookup_idx = 2;
+    if (nelts > 2 && value[2].len >= prefix_len &&
+            ngx_strncmp(value[2].data, prefix, prefix_len) == 0) {
+        geoip2->default_value.len = value[2].len - prefix_len;
+        geoip2->default_value.data = value[2].data + prefix_len;
+        lookup_idx++;
+    }
+
     var = ngx_http_add_variable(cf, &name, NGX_HTTP_VAR_CHANGEABLE);
     if (var == NULL) {
         return NGX_CONF_ERROR;
     }
 
-    for (i = 2; i < nelts; i++) {
-        geoip2->lookup[i-2] = (char *) value[i].data;
+    for (i = lookup_idx; i < nelts; i++) {
+        geoip2->lookup[i-lookup_idx] = (char *) value[i].data;
     }
     geoip2->lookup[i] = NULL;
 
