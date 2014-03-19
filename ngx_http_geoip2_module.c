@@ -213,10 +213,9 @@ not_found:
         v->valid = 1;
         v->no_cacheable = 0;
         v->not_found = 0;
-
-        return NGX_OK;
+    } else {
+        v->not_found = 1;
     }
-    v->not_found = 1;
 
     return NGX_OK;
 }
