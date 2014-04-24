@@ -122,6 +122,7 @@ ngx_http_geoip2_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v,
     ngx_http_geoip2_conf_t  *gcf;
     ngx_addr_t              addr;
     ngx_array_t             *xfwd;
+    u_char                  *p;
 
 #if (NGX_HAVE_INET6)
     uint8_t address[16], *addressp = address;
@@ -194,6 +195,14 @@ ngx_http_geoip2_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v,
         case MMDB_DATA_TYPE_UTF8_STRING:
             v->data = (u_char *) entry_data.utf8_string;
             v->len = entry_data.data_size;
+            break;
+        case MMDB_DATA_TYPE_UINT32:
+            p = ngx_palloc(r->pool, NGX_OFF_T_LEN);
+            if (p == NULL) {
+                return NGX_ERROR;
+            }
+            v->len = ngx_sprintf(p, "%O", entry_data.uint32) - p;
+            v->data = p;
             break;
         default:
             goto not_found;
