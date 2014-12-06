@@ -9,6 +9,7 @@
 #include <ngx_core.h>
 #include <ngx_http.h>
 
+#include <inttypes.h>
 #include <maxminddb.h>
 
 
@@ -49,6 +50,15 @@ static ngx_int_t ngx_http_geoip2_cidr_value(ngx_conf_t *cf, ngx_str_t *net,
     ngx_cidr_t *cidr);
 static void ngx_http_geoip2_cleanup(void *data);
 
+
+#define FORMAT(fmt, ...)                            \
+    p = ngx_palloc(r->pool, NGX_OFF_T_LEN);         \
+    if (p == NULL) {                                \
+        return NGX_ERROR;                           \
+    }                                               \
+    v->len = ngx_sprintf(p, fmt, __VA_ARGS__) - p;  \
+    v->data = p;                                    \
+    break
 
 static ngx_command_t  ngx_http_geoip2_commands[] = {
 
@@ -184,18 +194,42 @@ ngx_http_geoip2_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v,
     }
 
     switch (entry_data.type) {
+        case MMDB_DATA_TYPE_BOOLEAN:
+            FORMAT("%d", entry_data.boolean);
         case MMDB_DATA_TYPE_UTF8_STRING:
             v->data = (u_char *) entry_data.utf8_string;
             v->len = entry_data.data_size;
             break;
-        case MMDB_DATA_TYPE_UINT32:
-            p = ngx_palloc(r->pool, NGX_OFF_T_LEN);
-            if (p == NULL) {
-                return NGX_ERROR;
-            }
-            v->len = ngx_sprintf(p, "%O", entry_data.uint32) - p;
-            v->data = p;
+        case MMDB_DATA_TYPE_BYTES:
+            v->data = (u_char *) entry_data.bytes;
+            v->len = entry_data.data_size;
             break;
+        case MMDB_DATA_TYPE_FLOAT:
+            FORMAT("%.5f", entry_data.float_value);
+        case MMDB_DATA_TYPE_DOUBLE:
+            FORMAT("%.5f", entry_data.double_value);
+        case MMDB_DATA_TYPE_UINT16:
+            FORMAT("%" PRIu16, entry_data.uint16);
+        case MMDB_DATA_TYPE_UINT32:
+            FORMAT("%" PRIu32, entry_data.uint32);
+        case MMDB_DATA_TYPE_INT32:
+            FORMAT("%" PRIi32, entry_data.int32);
+        case MMDB_DATA_TYPE_UINT64:
+            FORMAT("%" PRIu64, entry_data.uint64);
+        case MMDB_DATA_TYPE_UINT128: ;
+#if MMDB_UINT128_IS_BYTE_ARRAY
+            uint8_t *val = (uint8_t *)entry_data.uint128;
+            FORMAT( "0x%02x%02x%02x%02x%02x%02x%02x%02x"
+                      "%02x%02x%02x%02x%02x%02x%02x%02x",
+                    val[0], val[1], val[2], val[3],
+                    val[4], val[5], val[6], val[7],
+                    val[8], val[9], val[10], val[11],
+                    val[12], val[13], val[14], val[15]);
+#else
+            mmdb_uint128_t val = entry_data.uint128;
+            FORMAT("0x%016" PRIx64 "%016" PRIx64,
+                    (uint64_t) (val >> 64), (uint64_t) val);
+#endif
         default:
             goto not_found;
     }
