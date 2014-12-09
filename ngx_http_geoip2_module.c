@@ -9,7 +9,6 @@
 #include <ngx_core.h>
 #include <ngx_http.h>
 
-#include <inttypes.h>
 #include <maxminddb.h>
 
 
@@ -209,13 +208,13 @@ ngx_http_geoip2_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v,
         case MMDB_DATA_TYPE_DOUBLE:
             FORMAT("%.5f", entry_data.double_value);
         case MMDB_DATA_TYPE_UINT16:
-            FORMAT("%" PRIu16, entry_data.uint16);
+            FORMAT("%uD", entry_data.uint16);
         case MMDB_DATA_TYPE_UINT32:
-            FORMAT("%" PRIu32, entry_data.uint32);
+            FORMAT("%uD", entry_data.uint32);
         case MMDB_DATA_TYPE_INT32:
-            FORMAT("%" PRIi32, entry_data.int32);
+            FORMAT("%D", entry_data.int32);
         case MMDB_DATA_TYPE_UINT64:
-            FORMAT("%" PRIu64, entry_data.uint64);
+            FORMAT("%uL", entry_data.uint64);
         case MMDB_DATA_TYPE_UINT128: ;
 #if MMDB_UINT128_IS_BYTE_ARRAY
             uint8_t *val = (uint8_t *)entry_data.uint128;
@@ -227,7 +226,7 @@ ngx_http_geoip2_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v,
                     val[12], val[13], val[14], val[15]);
 #else
             mmdb_uint128_t val = entry_data.uint128;
-            FORMAT("0x%016" PRIx64 "%016" PRIx64,
+            FORMAT("0x%016uxL%016uxL",
                     (uint64_t) (val >> 64), (uint64_t) val);
 #endif
         default:
