@@ -7,7 +7,28 @@ Description
 First install [libmaxminddb](https://github.com/maxmind/libmaxminddb) as described in its [README.md
 file](https://github.com/maxmind/libmaxminddb/blob/master/README.md#installing-from-a-tarball).
 
-Compile nginx:
+#### Download nginx source
+```
+wget http://nginx.org/nginx-VERSION.tar.gz
+tar zxvf nginx-VERSION.tar.gz
+cd nginx-VERSION
+```
+
+##### To build as a dynamic module (nginx 1.9.11+):
+```
+./configure --add-dynamic-module=/path/to/ngx_http_geoip2_module
+make
+make install
+```
+
+This will produce ```objs/ngx_http_geoip2_module.so```. It can be copied to your nginx module path manually if you wish.
+
+Add the following line to your nginx.conf:
+```
+load_module modules/ngx_http_geoip2_module.so;
+```
+
+##### To build as a static module:
 ```
 ./configure --add-module=/path/to/ngx_http_geoip2_module
 make 
@@ -33,5 +54,37 @@ http {
         $geoip2_data_city_name default=London city names en;
     }
     ....
+
+    fastcgi_param COUNTRY_CODE $geoip2_data_country_code;
+    fastcgi_param COUNTRY_NAME $geoip2_data_country_name;
+    fastcgi_param CITY_NAME    $geoip2_data_city_name;
+    ....
 }
+```
+
+To find the path of the data you want (eg: city names en), use the [mmdblookup tool](https://maxmind.github.io/libmaxminddb/mmdblookup.html):
+
+```
+$ mmdblookup --file /usr/share/GeoIP/GeoIP2-Country.mmdb --ip 8.8.8.8
+
+  {
+    "country": 
+      {
+        "geoname_id": 
+          6252001 <uint32>
+        "iso_code": 
+          "US" <utf8_string>
+        "names": 
+          {
+            "de": 
+              "USA" <utf8_string>
+            "en": 
+              "United States" <utf8_string>
+          }
+      }
+  }
+
+$ mmdblookup --file /usr/share/GeoIP/GeoIP2-Country.mmdb --ip 8.8.8.8 country names en
+
+  "United States" <utf8_string>
 ```
