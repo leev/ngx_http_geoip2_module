@@ -9,7 +9,7 @@ file](https://github.com/maxmind/libmaxminddb/blob/master/README.md#installing-f
 
 #### Download nginx source
 ```
-wget http://nginx.org/nginx-VERSION.tar.gz
+wget http://nginx.org/download/nginx-VERSION.tar.gz
 tar zxvf nginx-VERSION.tar.gz
 cd nginx-VERSION
 ```
