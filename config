@@ -3,6 +3,7 @@ ngx_feature_name=
 ngx_feature_run=no
 ngx_feature_incs="#include <maxminddb.h>"
 ngx_feature_libs=-lmaxminddb
+ngx_feature_test="MMDB_s mmdb"
 . auto/feature
 
 if [ $ngx_found = yes ]; then
