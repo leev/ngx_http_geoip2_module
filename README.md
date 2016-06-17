@@ -46,7 +46,7 @@ The free GeoLite2 databases are available from [Maxminds website](http://dev.max
 http {
     ...
     geoip2 /etc/maxmind-country.mmdb {
-        $geoip2_data_country_code default=US country iso_code;
+        $geoip2_data_country_code default=US source=$variable_with_ip country iso_code;
         $geoip2_data_country_name country names en;
     }
 

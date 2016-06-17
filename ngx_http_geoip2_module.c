@@ -13,25 +13,26 @@
 
 
 typedef struct {
-    MMDB_s                  mmdb;
-    MMDB_lookup_result_s    result;
+    MMDB_s                   mmdb;
+    MMDB_lookup_result_s     result;
 #if (NGX_HAVE_INET6)
-    uint8_t                 address[16];
+    uint8_t                  address[16];
 #else
-    unsigned long           address;
+    unsigned long            address;
 #endif
 } ngx_http_geoip2_db_t;
 
 typedef struct {
-    ngx_array_t             *databases;
-    ngx_array_t             *proxies;
-    ngx_flag_t              proxy_recursive;
+    ngx_array_t              *databases;
+    ngx_array_t              *proxies;
+    ngx_flag_t               proxy_recursive;
 } ngx_http_geoip2_conf_t;
 
 typedef struct {
-    ngx_http_geoip2_db_t    *database;
-    const char              **lookup;
-    ngx_str_t               default_value;
+    ngx_http_geoip2_db_t     *database;
+    const char               **lookup;
+    ngx_str_t                default_value;
+    ngx_http_complex_value_t source;
 } ngx_http_geoip2_ctx_t;
 
 
@@ -129,6 +130,7 @@ ngx_http_geoip2_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v,
     ngx_addr_t              addr;
     ngx_array_t             *xfwd;
     u_char                  *p;
+    ngx_str_t               val;
 
 #if (NGX_HAVE_INET6)
     uint8_t address[16], *addressp = address;
@@ -136,15 +138,25 @@ ngx_http_geoip2_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v,
     unsigned long address;
 #endif
 
-    gcf = ngx_http_get_module_main_conf(r, ngx_http_geoip2_module);
-    addr.sockaddr = r->connection->sockaddr;
-    addr.socklen = r->connection->socklen;
+    if (geoip2->source.value.len > 0) {
+         if (ngx_http_complex_value(r, &geoip2->source, &val) != NGX_OK) {
+             goto not_found;
+         }
 
-    xfwd = &r->headers_in.x_forwarded_for;
+        if (ngx_parse_addr(r->pool, &addr, val.data, val.len) != NGX_OK) {
+            goto not_found;
+        }
+    } else {
+        gcf = ngx_http_get_module_main_conf(r, ngx_http_geoip2_module);
+        addr.sockaddr = r->connection->sockaddr;
+        addr.socklen = r->connection->socklen;
 
-    if (xfwd->nelts > 0 && gcf->proxies != NULL) {
-        (void) ngx_http_get_forwarded_addr(r, &addr, xfwd, NULL,
-                                           gcf->proxies, gcf->proxy_recursive);
+        xfwd = &r->headers_in.x_forwarded_for;
+
+        if (xfwd->nelts > 0 && gcf->proxies != NULL) {
+            (void) ngx_http_get_forwarded_addr(r, &addr, xfwd, NULL,
+                                               gcf->proxies, gcf->proxy_recursive);
+        }
     }
 
     switch (addr.sockaddr->sa_family) {
@@ -352,12 +364,11 @@ ngx_http_geoip2(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 static char *
 ngx_http_geoip2_add_variable(ngx_conf_t *cf, ngx_command_t *dummy, void *conf)
 {
-    ngx_str_t               *value, name;
-    ngx_http_geoip2_ctx_t   *geoip2;
-    ngx_http_variable_t     *var;
-    int                     i, nelts, idx;
-    char                    *prefix = "default=";
-    size_t                  prefix_len = sizeof("default=") - 1;
+    ngx_str_t                          *value, name, source;
+    ngx_http_geoip2_ctx_t              *geoip2;
+    ngx_http_variable_t                *var;
+    int                                i, nelts, idx;
+    ngx_http_compile_complex_value_t   ccv;
 
     geoip2 = ngx_pcalloc(cf->pool, sizeof(ngx_http_geoip2_ctx_t));
     if (geoip2 == NULL) {
@@ -378,12 +389,57 @@ ngx_http_geoip2_add_variable(ngx_conf_t *cf, ngx_command_t *dummy, void *conf)
     nelts = (int) cf->args->nelts;
     idx = 1;
     geoip2->database = (ngx_http_geoip2_db_t *) conf;
+    ngx_str_null(&source);
 
-    if (nelts > idx && value[idx].len >= prefix_len &&
-        ngx_strncmp(value[idx].data, prefix, prefix_len) == 0) {
-        geoip2->default_value.len = value[idx].len - prefix_len;
-        geoip2->default_value.data = value[idx].data + prefix_len;
-        idx++;
+    if (nelts > idx) {
+        for (i = idx; i < nelts; i++) {
+            if (ngx_strnstr(value[idx].data, "=", value[idx].len) == NULL) {
+                break;
+            }
+
+            if (value[idx].len > 8 && ngx_strncmp(value[idx].data, "default=", 8) == 0) {
+                if (geoip2->default_value.len > 0) {
+                    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                                       "default has already been declared for  \"$%V\"", &name);
+                    return NGX_CONF_ERROR;
+                }
+
+                geoip2->default_value.len  = value[idx].len - 8;
+                geoip2->default_value.data = value[idx].data + 8;
+            } else if (value[idx].len > 7 && ngx_strncmp(value[idx].data, "source=", 7) == 0) {
+                if (source.len > 0) {
+                    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                                       "source has already been declared for  \"$%V\"", &name);
+                    return NGX_CONF_ERROR;
+                }
+
+                source.len  = value[idx].len - 7;
+                source.data = value[idx].data + 7;
+
+                if (source.data[0] != '$') {
+                    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                                       "invalid source variable name \"%V\"", &source);
+                    return NGX_CONF_ERROR;
+                }
+
+                ngx_memzero(&ccv, sizeof(ngx_http_compile_complex_value_t));
+                ccv.cf = cf;
+                ccv.value = &source;
+                ccv.complex_value = &geoip2->source;
+
+                if (ngx_http_compile_complex_value(&ccv) != NGX_OK) {
+                    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                                       "unable to compile \"%V\" for \"$%V\"", &source, &name);
+                    return NGX_CONF_ERROR;
+                }
+            } else {
+                    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                                       "invalid setting \"%V\" for \"$%V\"", &value[idx], &name);
+                    return NGX_CONF_ERROR;
+            }
+
+            idx++;
+        }
     }
 
     var = ngx_http_add_variable(cf, &name, NGX_HTTP_VAR_CHANGEABLE);
