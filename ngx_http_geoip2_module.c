@@ -50,14 +50,14 @@ static ngx_int_t ngx_http_geoip2_cidr_value(ngx_conf_t *cf, ngx_str_t *net,
 static void ngx_http_geoip2_cleanup(void *data);
 
 
-#define FORMAT(fmt, ...)                            \
-    p = ngx_palloc(r->pool, NGX_OFF_T_LEN);         \
-    if (p == NULL) {                                \
-        return NGX_ERROR;                           \
-    }                                               \
-    v->len = ngx_sprintf(p, fmt, __VA_ARGS__) - p;  \
-    v->data = p;                                    \
-    break
+#define FORMAT(fmt, ...) do {                           \
+        p = ngx_palloc(r->pool, NGX_OFF_T_LEN);         \
+        if (p == NULL) {                                \
+            return NGX_ERROR;                           \
+        }                                               \
+        v->len = ngx_sprintf(p, fmt, __VA_ARGS__) - p;  \
+        v->data = p;                                    \
+} while (0)
 
 static ngx_command_t  ngx_http_geoip2_commands[] = {
 
@@ -195,6 +195,7 @@ ngx_http_geoip2_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v,
     switch (entry_data.type) {
         case MMDB_DATA_TYPE_BOOLEAN:
             FORMAT("%d", entry_data.boolean);
+            break;
         case MMDB_DATA_TYPE_UTF8_STRING:
             v->data = (u_char *) entry_data.utf8_string;
             v->len = entry_data.data_size;
@@ -205,16 +206,22 @@ ngx_http_geoip2_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v,
             break;
         case MMDB_DATA_TYPE_FLOAT:
             FORMAT("%.5f", entry_data.float_value);
+            break;
         case MMDB_DATA_TYPE_DOUBLE:
             FORMAT("%.5f", entry_data.double_value);
+            break;
         case MMDB_DATA_TYPE_UINT16:
             FORMAT("%uD", entry_data.uint16);
+            break;
         case MMDB_DATA_TYPE_UINT32:
             FORMAT("%uD", entry_data.uint32);
+            break;
         case MMDB_DATA_TYPE_INT32:
             FORMAT("%D", entry_data.int32);
+            break;
         case MMDB_DATA_TYPE_UINT64:
             FORMAT("%uL", entry_data.uint64);
+            break;
         case MMDB_DATA_TYPE_UINT128: ;
 #if MMDB_UINT128_IS_BYTE_ARRAY
             uint8_t *val = (uint8_t *)entry_data.uint128;
@@ -229,6 +236,7 @@ ngx_http_geoip2_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v,
             FORMAT("0x%016uxL%016uxL",
                     (uint64_t) (val >> 64), (uint64_t) val);
 #endif
+            break;
         default:
             goto not_found;
     }
