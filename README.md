@@ -1,7 +1,9 @@
 Description
 ===========
 
-**ngx_http_geoip2_module** - creates variables with values from the maxmind geoip2 databases based on the client IP (supports both IPv4 and IPv6)
+**ngx_http_geoip2_module** - creates variables with values from the maxmind geoip2 databases based on the client IP (default) or from a specific variable (supports both IPv4 and IPv6)
+
+The module now supports nginx streams and can be used in the same way the http module can be used.
 
 ## Installing
 First install [libmaxminddb](https://github.com/maxmind/libmaxminddb) as described in its [README.md
@@ -59,6 +61,14 @@ http {
     fastcgi_param COUNTRY_NAME $geoip2_data_country_name;
     fastcgi_param CITY_NAME    $geoip2_data_city_name;
     ....
+}
+
+stream {
+    ...
+    geoip2 /etc/maxmind-country.mmdb {
+        $geoip2_data_country_code default=US source=$remote_addr country iso_code;
+    }
+    ...
 }
 ```
 
