@@ -6,21 +6,33 @@ ngx_feature_libs=-lmaxminddb
 ngx_feature_test="MMDB_s mmdb"
 . auto/feature
 
-if [ $ngx_found = yes ]; then
-	ngx_addon_name=ngx_http_geoip2_module
-        module_src="$ngx_addon_dir/ngx_http_geoip2_module.c"
+ngx_addon_name="ngx_geoip2_module"
 
+if [ $ngx_found = yes ]; then
 	if test -n "$ngx_module_link"; then
-		ngx_module_type=HTTP
-		ngx_module_name="$ngx_addon_name"
-		ngx_module_incs=
-		ngx_module_deps=
-		ngx_module_srcs="$module_src"
-		ngx_module_libs="$ngx_feature_libs"
-		. auto/module
+		if [ $HTTP != NO ]; then
+			ngx_module_type=HTTP
+			ngx_module_name="ngx_http_geoip2_module"
+			ngx_module_incs=
+			ngx_module_deps=
+			ngx_module_srcs="$ngx_addon_dir/ngx_http_geoip2_module.c"
+			ngx_module_libs="$ngx_feature_libs"
+			. auto/module
+		fi
+
+		nginx_version=`awk '/^#define nginx_version / {print $3}' src/core/nginx.h`
+		if [ $STREAM != NO -a $nginx_version -gt 1011001 ]; then
+			ngx_module_type=STREAM
+			ngx_module_name="ngx_stream_geoip2_module"
+			ngx_module_incs=
+			ngx_module_deps=
+			ngx_module_srcs="$ngx_addon_dir/ngx_stream_geoip2_module.c"
+			ngx_module_libs="$ngx_feature_libs"
+			. auto/module
+		fi
 	else
-		HTTP_MODULES="$HTTP_MODULES $ngx_addon_name"
-		NGX_ADDON_SRCS="$NGX_ADDON_SRCS $module_src"
+		HTTP_MODULES="$HTTP_MODULES ngx_http_geoip2_module"
+		NGX_ADDON_SRCS="$NGX_ADDON_SRCS $ngx_addon_dir/ngx_http_geoip2_module.c"
 		CORE_LIBS="$CORE_LIBS $ngx_feature_libs"
 	fi
 else   
