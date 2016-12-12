@@ -26,6 +26,7 @@ typedef struct {
     ngx_array_t              *databases;
     ngx_array_t              *proxies;
     ngx_flag_t               proxy_recursive;
+    ngx_flag_t               first_non_private_ip;
 } ngx_http_geoip2_conf_t;
 
 typedef struct {
@@ -81,6 +82,13 @@ static ngx_command_t  ngx_http_geoip2_commands[] = {
         ngx_conf_set_flag_slot,
         NGX_HTTP_MAIN_CONF_OFFSET,
         offsetof(ngx_http_geoip2_conf_t, proxy_recursive),
+        NULL },
+
+    { ngx_string("geoip2_first_non_private_ip"),
+        NGX_HTTP_MAIN_CONF|NGX_CONF_FLAG,
+        ngx_conf_set_flag_slot,
+        NGX_HTTP_MAIN_CONF_OFFSET,
+        offsetof(ngx_http_geoip2_conf_t, first_non_private_ip),
         NULL },
 
     ngx_null_command
@@ -288,6 +296,8 @@ ngx_http_geoip2_create_conf(ngx_conf_t *cf)
 
     conf->proxy_recursive = NGX_CONF_UNSET;
 
+    conf->first_non_private_ip = NGX_CONF_UNSET;
+
     cln = ngx_pool_cleanup_add(cf->pool, 0);
     if (cln == NULL) {
         return NULL;
@@ -471,6 +481,8 @@ ngx_http_geoip2_init_conf(ngx_conf_t *cf, void *conf)
 {
     ngx_http_geoip2_conf_t  *gcf = conf;
     ngx_conf_init_value(gcf->proxy_recursive, 0);
+    ngx_conf_init_value(gcf->first_non_private_ip, 0);
+
     return NGX_CONF_OK;
 }
 
