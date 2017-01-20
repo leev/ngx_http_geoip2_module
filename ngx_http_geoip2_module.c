@@ -117,6 +117,7 @@ ngx_module_t  ngx_http_geoip2_module = {
     NGX_MODULE_V1_PADDING
 };
 
+static u_char spaced_def_val[NGX_MAX_PATH];
 
 static ngx_int_t
 ngx_http_geoip2_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v,
@@ -236,17 +237,17 @@ ngx_http_geoip2_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v,
             break;
         case MMDB_DATA_TYPE_UINT128: ;
 #if MMDB_UINT128_IS_BYTE_ARRAY
-            uint8_t *val = (uint8_t *)entry_data.uint128;
+            uint8_t *tmp_val = (uint8_t *)entry_data.uint128;
             FORMAT( "0x%02x%02x%02x%02x%02x%02x%02x%02x"
                       "%02x%02x%02x%02x%02x%02x%02x%02x",
-                    val[0], val[1], val[2], val[3],
-                    val[4], val[5], val[6], val[7],
-                    val[8], val[9], val[10], val[11],
-                    val[12], val[13], val[14], val[15]);
+                    tmp_val[0], tmp_val[1], tmp_val[2], tmp_val[3],
+                    tmp_val[4], tmp_val[5], tmp_val[6], tmp_val[7],
+                    tmp_val[8], tmp_val[9], tmp_val[10], tmp_val[11],
+                    tmp_val[12], tmp_val[13], tmp_val[14], tmp_val[15]);
 #else
-            mmdb_uint128_t val = entry_data.uint128;
+            mmdb_uint128_t tmp_val = entry_data.uint128;
             FORMAT("0x%016uxL%016uxL",
-                    (uint64_t) (val >> 64), (uint64_t) val);
+                    (uint64_t) (tmp_val >> 64), (uint64_t) tmp_val);
 #endif
             break;
         default:
@@ -367,7 +368,7 @@ ngx_http_geoip2_add_variable(ngx_conf_t *cf, ngx_command_t *dummy, void *conf)
     ngx_str_t                          *value, name, source;
     ngx_http_geoip2_ctx_t              *geoip2;
     ngx_http_variable_t                *var;
-    int                                i, nelts, idx;
+    int                                i, nelts, idx, len;
     ngx_http_compile_complex_value_t   ccv;
 
     geoip2 = ngx_pcalloc(cf->pool, sizeof(ngx_http_geoip2_ctx_t));
@@ -406,6 +407,31 @@ ngx_http_geoip2_add_variable(ngx_conf_t *cf, ngx_command_t *dummy, void *conf)
 
                 geoip2->default_value.len  = value[idx].len - 8;
                 geoip2->default_value.data = value[idx].data + 8;
+
+                if (geoip2->default_value.data[0] == '"') {
+                    if (geoip2->default_value.data[geoip2->default_value.len - 1] == '"') {
+                        // When it is just one word in quotes, strip off quotes
+                        geoip2->default_value.data++;
+                        geoip2->default_value.data[geoip2->default_value.len - 2] = '\0';
+                        geoip2->default_value.len -= 2;
+                    } else {
+                        // Concat each part in quotes to one string then
+                        ngx_cpystrn(spaced_def_val, value[idx].data + 9, NGX_MAX_PATH - 1);
+                        len = value[idx].len - 9;
+                        do {
+                            ++idx;
+                            spaced_def_val[len] = ' ';
+                            ngx_cpystrn(spaced_def_val + len + 1, value[idx].data, NGX_MAX_PATH - len - 2);
+                            len += 1 + value[idx].len;
+                        } while (idx < nelts &&
+                            len + 1 < NGX_MAX_PATH &&
+                            value[idx].data[value[idx].len - 1] != '"');
+                        --len;
+                        spaced_def_val[len] = '\0';
+                        geoip2->default_value.data = spaced_def_val;
+                        geoip2->default_value.len = len;
+                    }
+                }
             } else if (value[idx].len > 7 && ngx_strncmp(value[idx].data, "source=", 7) == 0) {
                 if (source.len > 0) {
                     ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
