@@ -279,6 +279,12 @@ ngx_stream_geoip2(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     value = cf->args->elts;
 
+    if (value[1].data && value[1].data[0] != '/') {
+        if (ngx_conf_full_name(cf->cycle, &value[1], 0) != NGX_OK) {
+            return NGX_CONF_ERROR;
+        }
+    }
+
     if (gcf->databases == NULL) {
         gcf->databases = ngx_array_create(cf->pool, 2,
                                           sizeof(ngx_stream_geoip2_db_t));
