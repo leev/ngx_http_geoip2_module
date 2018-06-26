@@ -35,8 +35,15 @@ typedef struct {
     ngx_http_complex_value_t source;
 } ngx_http_geoip2_ctx_t;
 
+typedef struct {
+    ngx_http_geoip2_db_t     *database;
+    ngx_str_t                metavalue;
+} ngx_http_geoip2_metadata_t;
+
 
 static ngx_int_t ngx_http_geoip2_variable(ngx_http_request_t *r,
+    ngx_http_variable_value_t *v, uintptr_t data);
+static ngx_int_t ngx_http_geoip2_metadata(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data);
 static void *ngx_http_geoip2_create_conf(ngx_conf_t *cf);
 static char *ngx_http_geoip2_init_conf(ngx_conf_t *cf, void *conf);
@@ -44,6 +51,10 @@ static char *ngx_http_geoip2(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
 static char *ngx_http_geoip2_add_variable(ngx_conf_t *cf, ngx_command_t *dummy,
     void *conf);
+static char *ngx_http_geoip2_add_variable_geodata(ngx_conf_t *cf,
+    ngx_http_geoip2_db_t *database);
+static char *ngx_http_geoip2_add_variable_metadata(ngx_conf_t *cf,
+    ngx_http_geoip2_db_t *database);
 static char *ngx_http_geoip2_proxy(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
 static ngx_int_t ngx_http_geoip2_cidr_value(ngx_conf_t *cf, ngx_str_t *net,
@@ -275,6 +286,29 @@ not_found:
 }
 
 
+static ngx_int_t
+ngx_http_geoip2_metadata(ngx_http_request_t *r, ngx_http_variable_value_t *v,
+    uintptr_t data)
+{
+    ngx_http_geoip2_metadata_t  *metadata = (ngx_http_geoip2_metadata_t *) data;
+    ngx_http_geoip2_db_t        *database = metadata->database;
+    u_char                      *p;
+
+    if (ngx_strncmp(metadata->metavalue.data, "build_epoch", 11) == 0) {
+        FORMAT("%uL", database->mmdb.metadata.build_epoch);
+    } else {
+        v->not_found = 1;
+        return NGX_OK;
+    }
+
+    v->valid = 1;
+    v->no_cacheable = 0;
+    v->not_found = 0;
+
+    return NGX_OK;
+}
+
+
 static void *
 ngx_http_geoip2_create_conf(ngx_conf_t *cf)
 {
@@ -370,32 +404,84 @@ ngx_http_geoip2(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 static char *
 ngx_http_geoip2_add_variable(ngx_conf_t *cf, ngx_command_t *dummy, void *conf)
 {
-    ngx_str_t                          *value, name, source;
-    ngx_http_geoip2_ctx_t              *geoip2;
-    ngx_http_variable_t                *var;
-    int                                i, nelts, idx;
-    ngx_http_compile_complex_value_t   ccv;
+    ngx_http_geoip2_db_t  *database;
+    ngx_str_t             *value;
+    int                   nelts;
 
-    geoip2 = ngx_pcalloc(cf->pool, sizeof(ngx_http_geoip2_ctx_t));
-    if (geoip2 == NULL) {
+    value = cf->args->elts;
+
+    if (value[0].data[0] != '$') {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                           "invalid variable name \"%V\"", &value[0]);
+        return NGX_CONF_ERROR;
+    }
+
+    value[0].len--;
+    value[0].data++;
+
+    nelts = (int) cf->args->nelts;
+    database = (ngx_http_geoip2_db_t *) conf;
+
+    if (nelts > 0 && value[1].len == 8 && ngx_strncmp(value[1].data, "metadata", 8) == 0) {
+        return ngx_http_geoip2_add_variable_metadata(cf, database);
+    }
+
+    return ngx_http_geoip2_add_variable_geodata(cf, database);
+}
+
+
+static char *
+ngx_http_geoip2_add_variable_metadata(ngx_conf_t *cf, ngx_http_geoip2_db_t *database)
+{
+    ngx_http_geoip2_metadata_t  *metadata;
+    ngx_str_t                   *value, name;
+    ngx_http_variable_t         *var;
+
+    metadata = ngx_pcalloc(cf->pool, sizeof(ngx_http_geoip2_metadata_t));
+    if (metadata == NULL) {
         return NGX_CONF_ERROR;
     }
 
     value = cf->args->elts;
     name = value[0];
 
-    if (name.data[0] != '$') {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "invalid variable name \"%V\"", &name);
+    metadata->database = database;
+    metadata->metavalue = value[2];
+
+    var = ngx_http_add_variable(cf, &name, NGX_HTTP_VAR_CHANGEABLE);
+    if (var == NULL) {
         return NGX_CONF_ERROR;
     }
 
-    name.len--;
-    name.data++;
+    var->get_handler = ngx_http_geoip2_metadata;
+    var->data = (uintptr_t) metadata;
+
+    return NGX_CONF_OK;
+}
+
+
+static char *
+ngx_http_geoip2_add_variable_geodata(ngx_conf_t *cf, ngx_http_geoip2_db_t *database)
+{
+    ngx_http_geoip2_ctx_t             *geoip2;
+    ngx_http_compile_complex_value_t  ccv;
+    ngx_str_t                         *value, name, source;
+    ngx_http_variable_t               *var;
+    int                               i, nelts, idx;
+
+    geoip2 = ngx_pcalloc(cf->pool, sizeof(ngx_http_geoip2_ctx_t));
+    if (geoip2 == NULL) {
+        return NGX_CONF_ERROR;
+    }
+
+    geoip2->database = database;
+    ngx_str_null(&source);
+
+    value = cf->args->elts;
+    name = value[0];
+
     nelts = (int) cf->args->nelts;
     idx = 1;
-    geoip2->database = (ngx_http_geoip2_db_t *) conf;
-    ngx_str_null(&source);
 
     if (nelts > idx) {
         for (i = idx; i < nelts; i++) {

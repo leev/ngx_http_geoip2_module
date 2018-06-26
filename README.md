@@ -33,7 +33,7 @@ load_module modules/ngx_http_geoip2_module.so;
 ##### To build as a static module:
 ```
 ./configure --add-module=/path/to/ngx_http_geoip2_module
-make 
+make
 make install
 ```
 
@@ -48,6 +48,7 @@ The free GeoLite2 databases are available from [Maxminds website](http://dev.max
 http {
     ...
     geoip2 /etc/maxmind-country.mmdb {
+        $geoip2_metadata_country_build metadata build_epoch;
         $geoip2_data_country_code default=US source=$variable_with_ip country iso_code;
         $geoip2_data_country_name country names en;
     }
@@ -72,23 +73,38 @@ stream {
 }
 ```
 
-To find the path of the data you want (eg: city names en), use the [mmdblookup tool](https://maxmind.github.io/libmaxminddb/mmdblookup.html):
+##### Metadata:
+Retrieve metadata regarding the geoip database.
+```
+$variable_name metadata <field>
+```
+Currently the only metadata field supported is build_epoch.
+
+##### GeoIP:
+```
+$variable_name [default=<value] [source=$variable_with_ip] path ...
+```
+If default is not specified, the variable will be empty if not found.
+
+If source is not specified, $remote_addr will be used to perform the lookup.
+
+To find the path of the data you want (eg: country names en), use the [mmdblookup tool](https://maxmind.github.io/libmaxminddb/mmdblookup.html):
 
 ```
 $ mmdblookup --file /usr/share/GeoIP/GeoIP2-Country.mmdb --ip 8.8.8.8
 
   {
-    "country": 
+    "country":
       {
-        "geoname_id": 
+        "geoname_id":
           6252001 <uint32>
-        "iso_code": 
+        "iso_code":
           "US" <utf8_string>
-        "names": 
+        "names":
           {
-            "de": 
+            "de":
               "USA" <utf8_string>
-            "en": 
+            "en":
               "United States" <utf8_string>
           }
       }
@@ -97,4 +113,10 @@ $ mmdblookup --file /usr/share/GeoIP/GeoIP2-Country.mmdb --ip 8.8.8.8
 $ mmdblookup --file /usr/share/GeoIP/GeoIP2-Country.mmdb --ip 8.8.8.8 country names en
 
   "United States" <utf8_string>
+```
+
+This translates to:
+
+```
+$country_name "default=United States" source=$remote_addr country names en
 ```
