@@ -48,6 +48,7 @@ The free GeoLite2 databases are available from [Maxminds website](http://dev.max
 http {
     ...
     geoip2 /etc/maxmind-country.mmdb {
+        auto_reload 5m;
         $geoip2_metadata_country_build metadata build_epoch;
         $geoip2_data_country_code default=US source=$variable_with_ip country iso_code;
         $geoip2_data_country_name country names en;
@@ -78,7 +79,17 @@ Retrieve metadata regarding the geoip database.
 ```
 $variable_name metadata <field>
 ```
-Currently the only metadata field supported is build_epoch.
+Available fields:
+  - build_epoch: the build timestamp of the maxmind database.
+  - last_check: the last time the database was checked for changes (when using auto_reload)
+  - last_reload: the last time the database was reloaded (when using auto_reload)
+
+##### Autoreload (default: disabled):
+Enabling auto reload will have nginx check the modification time of the database at the specified
+interval and reload it if it has changed.
+```
+auto_reload <interval>
+```
 
 ##### GeoIP:
 ```

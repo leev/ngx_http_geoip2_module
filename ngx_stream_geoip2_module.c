@@ -16,6 +16,9 @@
 typedef struct {
     MMDB_s                   mmdb;
     MMDB_lookup_result_s     result;
+    time_t                   last_check;
+    time_t                   last_change;
+    time_t                   check_interval;
 #if (NGX_HAVE_INET6)
     uint8_t                  address[16];
 #else
@@ -40,11 +43,17 @@ typedef struct {
 } ngx_stream_geoip2_metadata_t;
 
 
+static ngx_int_t ngx_stream_geoip2_reload(ngx_stream_geoip2_db_t *database,
+    ngx_log_t *log);
 static ngx_int_t ngx_stream_geoip2_variable(ngx_stream_session_t *s,
     ngx_stream_variable_value_t *v, uintptr_t data);
 static ngx_int_t ngx_stream_geoip2_metadata(ngx_stream_session_t *s,
     ngx_stream_variable_value_t *v, uintptr_t data);
 static void *ngx_stream_geoip2_create_conf(ngx_conf_t *cf);
+static char *ngx_stream_geoip2(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
+static char *ngx_stream_geoip2_parse_config(ngx_conf_t *cf, ngx_command_t *dummy,
+    void *conf);
 static char *ngx_stream_geoip2(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
 static char *ngx_stream_geoip2_add_variable(ngx_conf_t *cf, ngx_command_t *dummy,
@@ -107,6 +116,41 @@ ngx_module_t  ngx_stream_geoip2_module = {
 
 
 static ngx_int_t
+ngx_stream_geoip2_reload(ngx_stream_geoip2_db_t *database, ngx_log_t *log)
+{
+    struct stat  attr;
+    MMDB_s       tmpdb;
+    int          status;
+
+    if (database->check_interval > 0
+            && database->last_check + database->check_interval <= ngx_time()) {
+        database->last_check = ngx_time();
+        stat(database->mmdb.filename, &attr);
+
+        if (attr.st_mtime > database->last_change) {
+            status = MMDB_open(database->mmdb.filename, MMDB_MODE_MMAP, &tmpdb);
+
+            if (status != MMDB_SUCCESS) {
+                ngx_log_error(NGX_LOG_ERR, log, 0,
+                                "MMDB_open(\"%s\") failed to reload - %s",
+                                database->mmdb.filename, MMDB_strerror(status));
+                return NGX_ERROR;
+            }
+
+            database->last_change = attr.st_mtime;
+            MMDB_close(&database->mmdb);
+            database->mmdb = tmpdb;
+
+            ngx_log_error(NGX_LOG_INFO, log, 0, "Reload MMDB \"%s\"",
+                                tmpdb.filename);
+        }
+    }
+
+    return NGX_OK;
+}
+
+
+static ngx_int_t
 ngx_stream_geoip2_variable(ngx_stream_session_t *s, ngx_stream_variable_value_t *v,
     uintptr_t data)
 {
@@ -123,6 +167,8 @@ ngx_stream_geoip2_variable(ngx_stream_session_t *s, ngx_stream_variable_value_t 
 #else
     unsigned long address;
 #endif
+
+    ngx_stream_geoip2_reload(database, s->connection->log);
 
     if (geoip2->source.value.len > 0) {
          if (ngx_stream_complex_value(s, &geoip2->source, &val) != NGX_OK) {
@@ -263,8 +309,14 @@ ngx_stream_geoip2_metadata(ngx_stream_session_t *s, ngx_stream_variable_value_t 
     ngx_stream_geoip2_db_t        *database = metadata->database;
     u_char                        *p;
 
+    ngx_stream_geoip2_reload(database, s->connection->log);
+
     if (ngx_strncmp(metadata->metavalue.data, "build_epoch", 11) == 0) {
         FORMAT("%uL", database->mmdb.metadata.build_epoch);
+    } else if (ngx_strncmp(metadata->metavalue.data, "last_check", 10) == 0) {
+        FORMAT("%T", database->last_check);
+    } else if (ngx_strncmp(metadata->metavalue.data, "last_change", 11) == 0) {
+        FORMAT("%T", database->last_change);
     } else {
         v->not_found = 1;
         return NGX_OK;
@@ -343,6 +395,8 @@ ngx_stream_geoip2(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return NGX_CONF_ERROR;
     }
 
+    database->last_check = database->last_change = ngx_time();
+
     status = MMDB_open((char *) value[1].data, MMDB_MODE_MMAP, &database->mmdb);
 
     if (status != MMDB_SUCCESS) {
@@ -359,12 +413,54 @@ ngx_stream_geoip2(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 #endif
 
     save = *cf;
-    cf->handler = ngx_stream_geoip2_add_variable;
+    cf->handler = ngx_stream_geoip2_parse_config;
     cf->handler_conf = (void *) database;
 
     rv = ngx_conf_parse(cf, NULL);
     *cf = save;
     return rv;
+}
+
+
+static char *
+ngx_stream_geoip2_parse_config(ngx_conf_t *cf, ngx_command_t *dummy, void *conf)
+{
+    ngx_stream_geoip2_db_t  *database;
+    ngx_str_t             *value;
+    time_t                interval;
+
+    value = cf->args->elts;
+
+    if (value[0].data[0] == '$') {
+        return ngx_stream_geoip2_add_variable(cf, dummy, conf);
+    }
+
+    if (value[0].len == 11
+            && ngx_strncmp(value[0].data, "auto_reload", 11) == 0) {
+        if ((int) cf->args->nelts != 2) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                               "invalid number of arguments for auto_reload");
+            return NGX_CONF_ERROR;
+        }
+
+        interval = ngx_parse_time(&value[1], true);
+
+        if (interval == (time_t) NGX_ERROR) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                               "invalid interval for auto_reload \"%V\"",
+                               value[1]);
+            return NGX_CONF_ERROR;
+        }
+
+
+        database = (ngx_stream_geoip2_db_t *) conf;
+        database->check_interval = interval;
+        return NGX_CONF_OK;
+    }
+
+    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                       "invalid setting \"%V\"", &value[0]);
+    return NGX_CONF_ERROR;
 }
 
 
