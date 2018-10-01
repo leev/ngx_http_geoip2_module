@@ -426,6 +426,8 @@ ngx_http_geoip2(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return NGX_CONF_ERROR;
     }
 
+    ngx_memzero(database, sizeof(ngx_http_geoip2_db_t));
+
     database->last_check = database->last_change = ngx_time();
 
     status = MMDB_open((char *) value[1].data, MMDB_MODE_MMAP, &database->mmdb);
@@ -436,12 +438,6 @@ ngx_http_geoip2(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
                            MMDB_strerror(status));
         return NGX_CONF_ERROR;
     }
-
-#if (NGX_HAVE_INET6)
-    ngx_memset(&database->address, 0, sizeof(database->address));
-#else
-    database->address = 0;
-#endif
 
     save = *cf;
     cf->handler = ngx_http_geoip2_parse_config;
