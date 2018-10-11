@@ -196,7 +196,7 @@ ngx_stream_geoip2_variable(ngx_stream_session_t *s, ngx_stream_variable_value_t 
             break;
         case MMDB_DATA_TYPE_UTF8_STRING:
             v->len = entry_data.data_size;
-            v->data = ngx_pnalloc(r->pool, v->len);
+            v->data = ngx_pnalloc(s->connection->pool, v->len);
             if (v->data == NULL) {
                 return NGX_ERROR;
             }
@@ -204,7 +204,7 @@ ngx_stream_geoip2_variable(ngx_stream_session_t *s, ngx_stream_variable_value_t 
             break;
         case MMDB_DATA_TYPE_BYTES:
             v->len = entry_data.data_size;
-            v->data = ngx_pnalloc(r->pool, v->len);
+            v->data = ngx_pnalloc(s->connection->pool, v->len);
             if (v->data == NULL) {
                 return NGX_ERROR;
             }
