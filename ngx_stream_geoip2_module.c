@@ -195,12 +195,20 @@ ngx_stream_geoip2_variable(ngx_stream_session_t *s, ngx_stream_variable_value_t 
             FORMAT("%d", entry_data.boolean);
             break;
         case MMDB_DATA_TYPE_UTF8_STRING:
-            v->data = (u_char *) entry_data.utf8_string;
             v->len = entry_data.data_size;
+            v->data = ngx_pnalloc(r->pool, v->len);
+            if (v->data == NULL) {
+                return NGX_ERROR;
+            }
+            ngx_memcpy(v->data, (u_char *) entry_data.utf8_string, v->len);
             break;
         case MMDB_DATA_TYPE_BYTES:
-            v->data = (u_char *) entry_data.bytes;
             v->len = entry_data.data_size;
+            v->data = ngx_pnalloc(r->pool, v->len);
+            if (v->data == NULL) {
+                return NGX_ERROR;
+            }
+            ngx_memcpy(v->data, (u_char *) entry_data.bytes, v->len);
             break;
         case MMDB_DATA_TYPE_FLOAT:
             FORMAT("%.5f", entry_data.float_value);
