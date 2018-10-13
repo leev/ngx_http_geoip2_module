@@ -82,7 +82,7 @@ $variable_name metadata <field>
 Available fields:
   - build_epoch: the build timestamp of the maxmind database.
   - last_check: the last time the database was checked for changes (when using auto_reload)
-  - last_reload: the last time the database was reloaded (when using auto_reload)
+  - last_change: the last time the database was reloaded (when using auto_reload)
 
 ##### Autoreload (default: disabled):
 Enabling auto reload will have nginx check the modification time of the database at the specified
