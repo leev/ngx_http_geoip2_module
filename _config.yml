@@ -2,7 +2,7 @@ title: NGINX GeoIP2 Module
 description: ngx_http_geoip2_module
 google_analytics: 
 show_downloads: true
-theme: jekyll-theme-minimal
+theme: jekyll-theme-cayman
 
 gems:
   - jekyll-mentions
