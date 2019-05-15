@@ -5,7 +5,19 @@ Description
 
 The module now supports nginx streams and can be used in the same way the http module can be used.
 
-## Installing
+## Installing in CentOS / RHEL 7
+
+Dynamic module for latest stable NGINX can be installed from binary packages to ensure easy updates in the future:
+
+    yum -y install https://extras.getpagespeed.com/release-el7-latest.rpm
+    yum install nginx nginx-module-geoip2
+
+Then add the following at the top of your /etc/nginx/nginx.conf:
+
+    load_module modules/ngx_http_geoip2_module.so;
+
+## Installing in other systems
+
 First install [libmaxminddb](https://github.com/maxmind/libmaxminddb) as described in its [README.md
 file](https://github.com/maxmind/libmaxminddb/blob/master/README.md#installing-from-a-tarball).
 
