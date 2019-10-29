@@ -23,10 +23,11 @@ typedef struct {
 #else
     unsigned long            address;
 #endif
+    ngx_queue_t              queue;
 } ngx_http_geoip2_db_t;
 
 typedef struct {
-    ngx_array_t              *databases;
+    ngx_queue_t              databases;
     ngx_array_t              *proxies;
     ngx_flag_t               proxy_recursive;
 } ngx_http_geoip2_conf_t;
@@ -345,6 +346,8 @@ ngx_http_geoip2_create_conf(ngx_conf_t *cf)
         return NULL;
     }
 
+    ngx_queue_init(&conf->databases);
+
     cln->handler = ngx_http_geoip2_cleanup;
     cln->data = conf;
 
@@ -357,10 +360,11 @@ ngx_http_geoip2(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     ngx_http_geoip2_conf_t  *gcf = conf;
     ngx_str_t               *value;
-    int                     status, nelts, i;
+    int                     status;
     ngx_http_geoip2_db_t    *database;
     char                    *rv;
     ngx_conf_t              save;
+    ngx_queue_t             *q;
 
     value = cf->args->elts;
 
@@ -370,18 +374,13 @@ ngx_http_geoip2(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         }
     }
 
-    if (gcf->databases == NULL) {
-        gcf->databases = ngx_array_create(cf->pool, 2,
-                                        sizeof(ngx_http_geoip2_db_t));
-        if (gcf->databases == NULL) {
-            return NGX_CONF_ERROR;
-        }
-    } else {
-        nelts = (int) gcf->databases->nelts;
-        database = gcf->databases->elts;
-
-        for (i = 0; i < nelts; i++) {
-            if (ngx_strcmp(value[1].data, database[i].mmdb.filename) == 0) {
+    if (!ngx_queue_empty(&gcf->databases)) {
+        for (q = ngx_queue_head(&gcf->databases);
+             q != ngx_queue_sentinel(&gcf->databases);
+             q = ngx_queue_next(q))
+        {
+            database = ngx_queue_data(q, ngx_http_geoip2_db_t, queue);
+            if (ngx_strcmp(value[1].data, database->mmdb.filename) == 0) {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                                    "Duplicate GeoIP2 mmdb - %V", &value[1]);
                 return NGX_CONF_ERROR;
@@ -389,13 +388,12 @@ ngx_http_geoip2(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         }
     }
 
-    database = ngx_array_push(gcf->databases);
+    database = ngx_pcalloc(cf->pool, sizeof(ngx_http_geoip2_db_t));
     if (database == NULL) {
         return NGX_CONF_ERROR;
     }
 
-    ngx_memzero(database, sizeof(ngx_http_geoip2_db_t));
-
+    ngx_queue_insert_tail(&gcf->databases, &database->queue);
     database->last_check = database->last_change = ngx_time();
 
     status = MMDB_open((char *) value[1].data, MMDB_MODE_MMAP, &database->mmdb);
@@ -690,17 +688,14 @@ static void
 ngx_http_geoip2_cleanup(void *data)
 {
     ngx_http_geoip2_conf_t  *gcf = data;
-    ngx_uint_t              i;
+    ngx_queue_t             *q;
     ngx_http_geoip2_db_t    *database;
 
-    if (gcf->databases != NULL) {
-        database = gcf->databases->elts;
-
-        for (i = 0; i < gcf->databases->nelts; i++) {
-            MMDB_close(&database[i].mmdb);
-        }
-
-        ngx_array_destroy(gcf->databases);
+    while (!ngx_queue_empty(&gcf->databases)) {
+        q = ngx_queue_head(&gcf->databases);
+        ngx_queue_remove(q);
+        database = ngx_queue_data(q, ngx_http_geoip2_db_t, queue);
+        MMDB_close(&database->mmdb);
     }
 }
 
@@ -710,7 +705,7 @@ ngx_http_geoip2_log_handler(ngx_http_request_t *r)
 {
     int                      status;
     MMDB_s                   tmpdb;
-    ngx_uint_t               i;
+    ngx_queue_t              *q;
     ngx_file_info_t          fi;
     ngx_http_geoip2_db_t    *database;
     ngx_http_geoip2_conf_t  *gcf;
@@ -720,57 +715,59 @@ ngx_http_geoip2_log_handler(ngx_http_request_t *r)
 
     gcf = ngx_http_get_module_main_conf(r, ngx_http_geoip2_module);
 
-    if (gcf->databases == NULL) {
+    if (ngx_queue_empty(&gcf->databases)) {
         return NGX_OK;
     }
 
-    database = gcf->databases->elts;
-
-    for (i = 0; i < gcf->databases->nelts; i++) {
-        if (database[i].check_interval == 0) {
+    for (q = ngx_queue_head(&gcf->databases);
+         q != ngx_queue_sentinel(&gcf->databases);
+         q = ngx_queue_next(q))
+    {
+        database = ngx_queue_data(q, ngx_http_geoip2_db_t, queue);
+        if (database->check_interval == 0) {
             continue;
         }
 
-        if ((database[i].last_check + database[i].check_interval)
+        if ((database->last_check + database->check_interval)
             > ngx_time())
         {
             continue;
         }
 
-        database[i].last_check = ngx_time();
+        database->last_check = ngx_time();
 
-        if (ngx_file_info(database[i].mmdb.filename, &fi) == NGX_FILE_ERROR) {
+        if (ngx_file_info(database->mmdb.filename, &fi) == NGX_FILE_ERROR) {
             ngx_log_error(NGX_LOG_EMERG, r->connection->log, ngx_errno,
                           ngx_file_info_n " \"%s\" failed",
-                          database[i].mmdb.filename);
+                          database->mmdb.filename);
 
             continue;
         }
 
-        if (ngx_file_mtime(&fi) <= database[i].last_change) {
+        if (ngx_file_mtime(&fi) <= database->last_change) {
             continue;
         }
 
         /* do the reload */
 
         ngx_memzero(&tmpdb, sizeof(MMDB_s));
-        status = MMDB_open(database[i].mmdb.filename, MMDB_MODE_MMAP, &tmpdb);
+        status = MMDB_open(database->mmdb.filename, MMDB_MODE_MMAP, &tmpdb);
 
         if (status != MMDB_SUCCESS) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                           "MMDB_open(\"%s\") failed to reload - %s",
-                          database[i].mmdb.filename, MMDB_strerror(status));
+                          database->mmdb.filename, MMDB_strerror(status));
 
             continue;
         }
 
-        database[i].last_change = ngx_file_mtime(&fi);
-        MMDB_close(&database[i].mmdb);
-        database[i].mmdb = tmpdb;
+        database->last_change = ngx_file_mtime(&fi);
+        MMDB_close(&database->mmdb);
+        database->mmdb = tmpdb;
 
         ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
                       "Reload MMDB \"%s\"",
-                      database[i].mmdb.filename);
+                      database->mmdb.filename);
     }
 
     return NGX_OK;
