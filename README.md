@@ -37,6 +37,14 @@ make
 make install
 ```
 
+##### If you need stream support, make sure to compile with stream:
+```
+./configure --add-dynamic-module=/path/to/ngx_http_geoip2_module --with-stream
+OR
+./configure --add-module=/path/to/ngx_http_geoip2_module --with-stream
+```
+
+
 ## Download Maxmind GeoLite2 Database (optional)
 The free GeoLite2 databases are available from [Maxminds website](http://dev.maxmind.com/geoip/geoip2/geolite2/) (requires signing up)
 
