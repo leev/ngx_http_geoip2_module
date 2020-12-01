@@ -128,3 +128,18 @@ This translates to:
 ```
 $country_name "default=United States" source=$remote_addr country names en
 ```
+
+##### Additional Commands:
+These commands works the same as the original ngx_http_geoip_module documented here: http://nginx.org/en/docs/http/ngx_http_geoip_module.html#geoip_proxy.
+
+However, if you provide the `source=$variable_with_ip` option on a variable, these settings will be ignored for that particular variable.
+
+```
+geoip2_proxy < cidr >
+```
+Defines trusted addresses.  When a request comes from a trusted address, an address from the "X-Forwarded-For" request header field will be used instead.
+
+```
+geoip2_proxy_recursive < on | off >
+```
+If recursive search is disabled then instead of the original client address that matches one of the trusted addresses, the last address sent in "X-Forwarded-For" will be used. If recursive search is enabled then instead of the original client address that matches one of the trusted addresses, the last non-trusted address sent in "X-Forwarded-For" will be used.
