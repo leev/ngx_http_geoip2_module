@@ -7,7 +7,7 @@ The module now supports nginx streams and can be used in the same way the http m
 
 ## Installing
 First install [libmaxminddb](https://github.com/maxmind/libmaxminddb) as described in its [README.md
-file](https://github.com/maxmind/libmaxminddb/blob/master/README.md#installing-from-a-tarball).
+file](https://github.com/maxmind/libmaxminddb/blob/main/README.md#installing-from-a-tarball).
 
 #### Download nginx source
 ```
