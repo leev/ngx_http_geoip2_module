@@ -146,7 +146,11 @@ ngx_http_geoip2_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v,
     MMDB_entry_data_s       entry_data;
     ngx_http_geoip2_conf_t  *gcf;
     ngx_addr_t              addr;
+#if defined(nginx_version) && nginx_version >= 1023000
+    ngx_table_elt_t         *xfwd;
+#else
     ngx_array_t             *xfwd;
+#endif
     u_char                  *p;
     ngx_str_t               val;
 
@@ -169,9 +173,15 @@ ngx_http_geoip2_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v,
         addr.sockaddr = r->connection->sockaddr;
         addr.socklen = r->connection->socklen;
 
+#if defined(nginx_version) && nginx_version >= 1023000
+        xfwd = r->headers_in.x_forwarded_for;
+
+        if (xfwd != NULL && gcf->proxies != NULL) {
+#else
         xfwd = &r->headers_in.x_forwarded_for;
 
         if (xfwd->nelts > 0 && gcf->proxies != NULL) {
+#endif
             (void) ngx_http_get_forwarded_addr(r, &addr, xfwd, NULL,
                                                gcf->proxies, gcf->proxy_recursive);
         }
