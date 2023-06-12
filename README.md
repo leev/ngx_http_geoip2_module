@@ -79,6 +79,25 @@ stream {
 }
 ```
 
+```
+http {
+
+    geoip2 /etc/GeoLite2-City.mmdb {
+        auto_reload 60m;
+        $geoip2_metadata_country_build metadata build_epoch;
+        $geoip2_data_country_code default=XX country iso_code;
+        $geoip2_data_country_name country names en;
+        $geoip2_data_city_name default=Narnia city names en;
+    }
+
+	add_header X-GeoCountry $geoip2_data_country_name;
+	add_header X-GeoCode $geoip2_data_country_code;
+	add_header X-GeoCity $geoip2_data_city_name;
+    
+    ...
+}
+```
+
 ##### Metadata:
 Retrieve metadata regarding the geoip database.
 ```
