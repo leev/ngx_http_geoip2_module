@@ -451,7 +451,7 @@ ngx_http_geoip2_parse_config(ngx_conf_t *cf, ngx_command_t *dummy, void *conf)
         if (interval == (time_t) NGX_ERROR) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                                "invalid interval for auto_reload \"%V\"",
-                               value[1]);
+                               &value[1]);
             return NGX_CONF_ERROR;
         }
 
