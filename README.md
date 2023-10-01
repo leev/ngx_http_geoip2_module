@@ -18,9 +18,8 @@ cd nginx-VERSION
 
 ##### To build as a dynamic module (nginx 1.9.11+):
 ```
-./configure --add-dynamic-module=/path/to/ngx_http_geoip2_module
-make
-make install
+./configure --with-compat --add-dynamic-module=/path/to/ngx_http_geoip2_module
+make modules
 ```
 
 This will produce ```objs/ngx_http_geoip2_module.so```. It can be copied to your nginx module path manually if you wish.
