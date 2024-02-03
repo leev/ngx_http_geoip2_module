@@ -30,6 +30,7 @@ typedef struct {
     ngx_queue_t              databases;
     ngx_array_t              *proxies;
     ngx_flag_t               proxy_recursive;
+    ngx_flag_t               string_uriencode;
 } ngx_http_geoip2_conf_t;
 
 typedef struct {
@@ -99,6 +100,13 @@ static ngx_command_t  ngx_http_geoip2_commands[] = {
         ngx_conf_set_flag_slot,
         NGX_HTTP_MAIN_CONF_OFFSET,
         offsetof(ngx_http_geoip2_conf_t, proxy_recursive),
+        NULL },
+
+    { ngx_string("string_uriencode"),
+        NGX_HTTP_MAIN_CONF|NGX_CONF_FLAG,
+        ngx_conf_set_flag_slot,
+        NGX_HTTP_MAIN_CONF_OFFSET,
+        offsetof(ngx_http_geoip2_conf_t, string_uriencode),
         NULL },
 
     ngx_null_command
@@ -237,12 +245,21 @@ ngx_http_geoip2_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v,
             FORMAT("%d", entry_data.boolean);
             break;
         case MMDB_DATA_TYPE_UTF8_STRING:
-            v->len = entry_data.data_size;
-            v->data = ngx_pnalloc(r->pool, v->len);
-            if (v->data == NULL) {
-                return NGX_ERROR;
+            if (!gcf->string_uriencode) {
+                v->len = entry_data.data_size;
+                v->data = ngx_pnalloc(r->pool, v->len);
+                if (v->data == NULL) {
+                    return NGX_ERROR;
+                }
+                ngx_memcpy(v->data, (u_char *) entry_data.utf8_string, v->len);
+            } else {
+                v->len = 2 * ngx_escape_uri(NULL, value->data, value->len, NGX_ESCAPE_URI);
+                v->data = ngx_pnalloc(r->pool, v->len);
+                if (v->data == NULL) {
+                    return NGX_ERROR;
+                }
+                (void) ngx_escape_uri(v->data, value->data, value->len, NGX_ESCAPE_URI);
             }
-            ngx_memcpy(v->data, (u_char *) entry_data.utf8_string, v->len);
             break;
         case MMDB_DATA_TYPE_BYTES:
             v->len = entry_data.data_size;
@@ -350,6 +367,8 @@ ngx_http_geoip2_create_conf(ngx_conf_t *cf)
     }
 
     conf->proxy_recursive = NGX_CONF_UNSET;
+
+    conf->string_uriencode = NGX_CONF_UNSET;
 
     cln = ngx_pool_cleanup_add(cf->pool, 0);
     if (cln == NULL) {
@@ -629,6 +648,7 @@ ngx_http_geoip2_init_conf(ngx_conf_t *cf, void *conf)
 {
     ngx_http_geoip2_conf_t  *gcf = conf;
     ngx_conf_init_value(gcf->proxy_recursive, 0);
+    ngx_conf_init_value(gcf->string_uriencode, 0);
     return NGX_CONF_OK;
 }
 
