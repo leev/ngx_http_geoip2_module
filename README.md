@@ -1,7 +1,7 @@
 Description
 ===========
 
-**ngx_http_geoip2_module** - creates variables with values from the maxmind geoip2 databases based on the client IP (default) or from a specific variable (supports both IPv4 and IPv6)
+**ngx_http_geoip2_module** - creates variables with values from the MaxMind GeoIP2 databases based on the client IP (default) or from a specific variable (supports both IPv4 and IPv6)
 
 The module now supports nginx streams and can be used in the same way the http module can be used.
 
@@ -45,7 +45,7 @@ OR
 
 
 ## Download Maxmind GeoLite2 Database (optional)
-The free GeoLite2 databases are available from [Maxminds website](http://dev.maxmind.com/geoip/geoip2/geolite2/) (requires signing up)
+The free GeoLite2 databases are available from [MaxMind's website](http://dev.maxmind.com/geoip/geoip2/geolite2/) (requires signing up)
 
 ## Example Usage:
 ```

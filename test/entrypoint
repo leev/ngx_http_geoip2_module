@@ -1,0 +1,8 @@
+#!/bin/bash
+
+sock="/var/run/fcgiwrap.socket"
+fcgiwrap -s unix:"$sock" -c 2 -f &
+sleep 1
+chown www-data: "$sock"
+/usr/local/nginx/sbin/nginx -c /test/nginx.conf &
+wait

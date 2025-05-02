@@ -1,0 +1,8 @@
+#!/bin/bash
+# cgi-env writes an HTML page listing current environment variables
+cgi-env() {
+    local body=$(env -0 | sort -z | xargs -0 printf "%s\n"| recode ascii..html)
+    printf "Content-type: text/html\\n\\n"
+    printf "<html>\\n<head><title>cgi-env</title></head>\\n<body>\\n<pre>\\n%s\\n</pre>\\n</body>\\n</html>\\n" "$body"
+}
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then cgi-env "$@"; fi
