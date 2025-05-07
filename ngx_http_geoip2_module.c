@@ -774,6 +774,7 @@ ngx_http_geoip2_log_handler(ngx_http_request_t *r)
         database->last_change = ngx_file_mtime(&fi);
         MMDB_close(&database->mmdb);
         database->mmdb = tmpdb;
+        ngx_memzero(&database->address, sizeof(database->address));
 
         ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
                       "Reload MMDB \"%s\"",
