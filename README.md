@@ -48,6 +48,13 @@ sudo apt-get update
 sudo apt-get install nginx nginx-module-geoip2
 ```
 
+Alternatively, you can use `lsb_release` to auto-detect your distribution:
+
+```bash
+echo "deb [signed-by=/etc/apt/keyrings/getpagespeed.gpg] https://extras.getpagespeed.com/$(lsb_release -is | tr '[A-Z]' '[a-z]') $(lsb_release -cs) main" \
+  | sudo tee /etc/apt/sources.list.d/getpagespeed-extras.list
+```
+
 The module is automatically enabled after installation. Supported distributions include Debian 12/13 and Ubuntu 20.04/22.04/24.04 (both amd64 and arm64).
 
 See [the complete setup instructions](https://apt-nginx-extras.getpagespeed.com/apt-setup/).
