@@ -666,6 +666,10 @@ ngx_stream_geoip2_log_handler(ngx_stream_session_t *s)
         MMDB_close(&database->mmdb);
         database->mmdb = tmpdb;
 
+        /* invalidate the cached lookup result from the old database */
+        ngx_memzero(&database->address, sizeof(database->address));
+        ngx_memzero(&database->result, sizeof(database->result));
+
         ngx_log_error(NGX_LOG_INFO, s->connection->log, 0,
                       "Reload MMDB \"%s\"",
                       database->mmdb.filename);
