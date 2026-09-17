@@ -19,6 +19,8 @@ typedef struct {
     time_t                   last_check;
     time_t                   last_change;
     time_t                   check_interval;
+    ngx_file_uniq_t          file_uniq;
+    off_t                    file_size;
 #if (NGX_HAVE_INET6)
     uint8_t                  address[16];
 #else
@@ -374,6 +376,15 @@ ngx_stream_geoip2(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return NGX_CONF_ERROR;
     }
 
+    {
+        ngx_file_info_t  fi;
+
+        if (ngx_file_info(database->mmdb.filename, &fi) != NGX_FILE_ERROR) {
+            database->file_uniq = ngx_file_uniq(&fi);
+            database->file_size = ngx_file_size(&fi);
+        }
+    }
+
     save = *cf;
     cf->handler = ngx_stream_geoip2_parse_config;
     cf->handler_conf = (void *) database;
@@ -645,7 +656,10 @@ ngx_stream_geoip2_log_handler(ngx_stream_session_t *s)
             continue;
         }
 
-        if (ngx_file_mtime(&fi) <= database->last_change) {
+        if (ngx_file_mtime(&fi) <= database->last_change
+            && ngx_file_uniq(&fi) == database->file_uniq
+            && ngx_file_size(&fi) == database->file_size)
+        {
             continue;
         }
 
@@ -663,6 +677,8 @@ ngx_stream_geoip2_log_handler(ngx_stream_session_t *s)
         }
 
         database->last_change = ngx_file_mtime(&fi);
+        database->file_uniq = ngx_file_uniq(&fi);
+        database->file_size = ngx_file_size(&fi);
         MMDB_close(&database->mmdb);
         database->mmdb = tmpdb;
 
